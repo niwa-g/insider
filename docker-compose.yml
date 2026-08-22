@@ -1,0 +1,134 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/var/www/html
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8080
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ark
+      DB_USERNAME: ark
+      DB_PASSWORD: secret
+      REDIS_HOST: redis
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      SESSION_DRIVER: redis
+      SCOUT_DRIVER: meilisearch
+      MEILISEARCH_HOST: http://meilisearch:7700
+      MEILISEARCH_KEY: masterKey
+    depends_on:
+      - postgres
+      - redis
+      - meilisearch
+    networks:
+      - ark
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    networks:
+      - ark
+
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: php artisan queue:work --sleep=1 --tries=3
+    volumes:
+      - .:/var/www/html
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ark
+      DB_USERNAME: ark
+      DB_PASSWORD: secret
+      REDIS_HOST: redis
+      QUEUE_CONNECTION: redis
+    depends_on:
+      - app
+      - redis
+      - postgres
+    networks:
+      - ark
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: php artisan schedule:work
+    volumes:
+      - .:/var/www/html
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ark
+      DB_USERNAME: ark
+      DB_PASSWORD: secret
+      REDIS_HOST: redis
+    depends_on:
+      - app
+      - postgres
+    networks:
+      - ark
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ark
+      POSTGRES_USER: ark
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ark
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - ark
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.13
+    environment:
+      MEILI_MASTER_KEY: masterKey
+      MEILI_ENV: development
+    ports:
+      - "7700:7700"
+    volumes:
+      - meili_data:/meili_data
+    networks:
+      - ark
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - ark
+
+volumes:
+  postgres_data:
+  meili_data:
+
+networks:
+  ark:
+    driver: bridge
