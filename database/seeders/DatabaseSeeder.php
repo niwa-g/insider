@@ -33,7 +33,9 @@ class DatabaseSeeder extends Seeder
             'teams.update',
             'teams.delete',
             'roles.view',
+            'roles.create',
             'roles.update',
+            'roles.delete',
             'audit.view',
             'settings.view',
             'clients.view',
@@ -393,6 +395,8 @@ class DatabaseSeeder extends Seeder
                 'status' => 'active',
             ]
         );
+
+        (new \App\Domains\Finance\Actions\SeedDefaultDiscountReasons)->handle($organization->id);
 
         $department = Department::withoutGlobalScopes()->firstOrCreate(
             [

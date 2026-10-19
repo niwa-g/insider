@@ -5,14 +5,19 @@ namespace App\Http\Controllers\Finance;
 use App\Domains\Catalog\Models\ClientService;
 use App\Domains\Crm\Models\Client;
 use App\Domains\Finance\Actions\DeleteInvoice;
+use App\Domains\Finance\Actions\GenerateInvoicePdf;
+use App\Domains\Finance\Actions\GenerateInvoiceReceiptPdf;
 use App\Domains\Finance\Actions\UpdateInvoiceStatus;
 use App\Domains\Finance\Actions\UpsertInvoice;
+use App\Domains\Finance\Enums\DiscountReasonStatus;
 use App\Domains\Finance\Enums\InvoiceStatus;
+use App\Domains\Finance\Models\DiscountReason;
 use App\Domains\Finance\Models\Invoice;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Finance\UpsertInvoiceRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response as HttpResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -57,7 +62,9 @@ class InvoiceController extends Controller
             'invoice' => null,
             'clients' => Client::query()->orderBy('company_name')->get(['id', 'company_name']),
             'clientServices' => ClientService::query()->orderBy('name')->get(['id', 'name', 'client_id', 'selling_price']),
+            'discountReasons' => $this->activeDiscountReasons(),
             'preselectedClientId' => $request->string('client_id')->toString() ?: null,
+            'canManageReasons' => $request->user()?->can('create', DiscountReason::class) ?? false,
         ]);
     }
 
@@ -67,6 +74,12 @@ class InvoiceController extends Controller
         $lines = $data['lines'];
         unset($data['lines']);
         $data['organization_id'] = $request->user()->organization_id;
+        $data['discount_type'] = $data['discount_type'] ?? 'flat';
+        $data['discount_value'] = $data['discount_value'] ?? 0;
+        $data['discount_amount'] = 0;
+        $data['discount_reason_id'] = ((float) $data['discount_value'] > 0)
+            ? ($data['discount_reason_id'] ?? null)
+            : null;
         $data['tax_amount'] = $data['tax_amount'] ?? 0;
         $invoice = $action->handle(null, $data, $lines);
 
@@ -76,12 +89,13 @@ class InvoiceController extends Controller
     public function show(Invoice $invoice): Response
     {
         $this->authorize('view', $invoice);
-        $invoice->load(['client:id,company_name,client_code', 'lines.clientService:id,name']);
+        $invoice->load(['client:id,company_name,client_code', 'lines.clientService:id,name', 'discountReason:id,name,code']);
 
         return Inertia::render('Finance/Invoices/Show', [
             'invoice' => [
                 ...$invoice->toArray(),
                 'status' => $invoice->getRawOriginal('status'),
+                'discount_type' => $invoice->getRawOriginal('discount_type') ?? 'flat',
                 'lines' => $invoice->lines->toArray(),
             ],
             'statuses' => InvoiceStatus::options(),
@@ -101,6 +115,7 @@ class InvoiceController extends Controller
             'invoice' => [
                 ...$invoice->toArray(),
                 'status' => $invoice->getRawOriginal('status'),
+                'discount_type' => $invoice->getRawOriginal('discount_type') ?? 'flat',
                 'lines' => $invoice->lines->map(fn ($l) => [
                     'description' => $l->description,
                     'quantity' => $l->quantity,
@@ -110,7 +125,9 @@ class InvoiceController extends Controller
             ],
             'clients' => Client::query()->orderBy('company_name')->get(['id', 'company_name']),
             'clientServices' => ClientService::query()->orderBy('name')->get(['id', 'name', 'client_id', 'selling_price']),
+            'discountReasons' => $this->activeDiscountReasons(),
             'preselectedClientId' => null,
+            'canManageReasons' => request()->user()?->can('create', DiscountReason::class) ?? false,
         ]);
     }
 
@@ -119,6 +136,11 @@ class InvoiceController extends Controller
         $data = $request->validated();
         $lines = $data['lines'];
         unset($data['lines']);
+        $data['discount_type'] = $data['discount_type'] ?? 'flat';
+        $data['discount_value'] = $data['discount_value'] ?? 0;
+        $data['discount_reason_id'] = ((float) $data['discount_value'] > 0)
+            ? ($data['discount_reason_id'] ?? null)
+            : null;
         $data['tax_amount'] = $data['tax_amount'] ?? 0;
         $action->handle($invoice, $data, $lines);
 
@@ -131,6 +153,24 @@ class InvoiceController extends Controller
         $action->handle($invoice);
 
         return redirect()->route('invoices.index')->with('success', 'Invoice deleted.');
+    }
+
+    public function pdf(Invoice $invoice, GenerateInvoicePdf $action): HttpResponse
+    {
+        $this->authorize('view', $invoice);
+
+        return $action->handle($invoice);
+    }
+
+    public function receipt(Invoice $invoice, GenerateInvoiceReceiptPdf $action): HttpResponse|RedirectResponse
+    {
+        $this->authorize('view', $invoice);
+
+        try {
+            return $action->handle($invoice);
+        } catch (\InvalidArgumentException $e) {
+            return back()->withErrors(['receipt' => $e->getMessage()]);
+        }
     }
 
     public function send(Invoice $invoice, UpdateInvoiceStatus $action): RedirectResponse
@@ -146,7 +186,7 @@ class InvoiceController extends Controller
         $this->authorize('update', $invoice);
         $action->handle($invoice, InvoiceStatus::Paid);
 
-        return back()->with('success', 'Invoice marked as paid.');
+        return back()->with('success', 'Invoice marked as paid. You can download the receipt.');
     }
 
     public function void(Invoice $invoice, UpdateInvoiceStatus $action): RedirectResponse
@@ -155,5 +195,15 @@ class InvoiceController extends Controller
         $action->handle($invoice, InvoiceStatus::Void);
 
         return back()->with('success', 'Invoice voided.');
+    }
+
+    /** @return \Illuminate\Support\Collection<int, array{id: string, name: string, code: string}> */
+    private function activeDiscountReasons()
+    {
+        return DiscountReason::query()
+            ->where('status', DiscountReasonStatus::Active)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
     }
 }

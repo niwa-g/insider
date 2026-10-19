@@ -162,6 +162,7 @@ export const mainNavigationSections: NavSection[] = [
                         permission: 'financial_entries.view',
                     },
                     { name: 'Invoices', href: '/invoices', permission: 'invoices.view' },
+                    { name: 'Discount reasons', href: '/discount-reasons', permission: 'invoices.view' },
                     { name: 'Renewals', href: '/renewals', permission: 'renewals.view' },
                 ],
             },
@@ -202,6 +203,7 @@ export const mainNavigationSections: NavSection[] = [
                 permission: 'settings.view',
                 children: [
                     { name: 'Overview', href: '/settings', permission: 'settings.view' },
+                    { name: 'Company', href: '/settings/organization', permission: 'settings.view' },
                     { name: 'Users', href: '/settings/users', permission: 'users.view' },
                     { name: 'Teams', href: '/settings/teams', permission: 'teams.view' },
                     { name: 'Roles', href: '/settings/roles', permission: 'roles.view' },

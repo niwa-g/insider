@@ -10,22 +10,35 @@ type Section = {
 
 type Props = {
     sections: Section[];
-    can: { users: boolean; teams: boolean; roles: boolean; audit: boolean };
+    can: {
+        organization: boolean;
+        users: boolean;
+        teams: boolean;
+        roles: boolean;
+        audit: boolean;
+    };
 };
 
-export default function SettingsIndex({ sections, can }: Props) {
-    const access: Record<string, boolean> = can;
+function allowed(section: Section, can: Props['can']): boolean {
+    if (section.href.includes('/organization')) {
+        return can.organization;
+    }
 
+    const key = section.permission.split('.')[0] as keyof Props['can'];
+
+    return Boolean(can[key]);
+}
+
+export default function SettingsIndex({ sections, can }: Props) {
     return (
         <AppLayout title="Settings">
             <p className="mb-6 text-sm text-slate-500">
-                Organization administration — users, teams, roles, and audit history.
+                Company profile, users, teams, roles, and audit history.
             </p>
 
             <div className="grid gap-4 sm:grid-cols-2">
                 {sections.map((section) => {
-                    const allowed = access[section.permission.split('.')[0] as keyof typeof can] ?? false;
-                    if (!allowed) {
+                    if (!allowed(section, can)) {
                         return null;
                     }
 

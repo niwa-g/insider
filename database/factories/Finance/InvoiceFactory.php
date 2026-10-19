@@ -3,6 +3,7 @@
 namespace Database\Factories\Finance;
 
 use App\Domains\Crm\Models\Client;
+use App\Domains\Finance\Enums\DiscountType;
 use App\Domains\Finance\Enums\InvoiceStatus;
 use App\Domains\Finance\Models\Invoice;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -25,6 +26,9 @@ class InvoiceFactory extends Factory
             'issue_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'subtotal' => $subtotal,
+            'discount_type' => DiscountType::Flat,
+            'discount_value' => 0,
+            'discount_amount' => 0,
             'tax_amount' => 0,
             'total' => $subtotal,
             'currency' => 'USD',

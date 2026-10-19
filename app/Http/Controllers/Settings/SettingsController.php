@@ -18,20 +18,26 @@ class SettingsController extends Controller
         return Inertia::render('Settings/Index', [
             'sections' => [
                 [
+                    'name' => 'Company profile',
+                    'description' => 'Logo, branding, address, and locale settings',
+                    'href' => '/settings/organization',
+                    'permission' => 'settings.view',
+                ],
+                [
                     'name' => 'Users',
-                    'description' => 'Organization members, roles, and status',
+                    'description' => 'Invite members, assign roles, and manage access',
                     'href' => '/settings/users',
                     'permission' => 'users.view',
                 ],
                 [
                     'name' => 'Teams',
-                    'description' => 'Departments and team membership',
+                    'description' => 'Departments, teams, and membership',
                     'href' => '/settings/teams',
                     'permission' => 'teams.view',
                 ],
                 [
                     'name' => 'Roles',
-                    'description' => 'Role definitions and permission counts',
+                    'description' => 'Role definitions and permission matrix',
                     'href' => '/settings/roles',
                     'permission' => 'roles.view',
                 ],
@@ -43,6 +49,7 @@ class SettingsController extends Controller
                 ],
             ],
             'can' => [
+                'organization' => $user?->can('settings.view') ?? false,
                 'users' => $user?->can('users.view') ?? false,
                 'teams' => $user?->can('teams.view') ?? false,
                 'roles' => $user?->can('roles.view') ?? false,

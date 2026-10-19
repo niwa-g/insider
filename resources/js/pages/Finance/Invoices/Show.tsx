@@ -18,10 +18,14 @@ type Props = {
         due_date: string | null;
         paid_at: string | null;
         subtotal: string;
+        discount_type: string;
+        discount_value: string;
+        discount_amount: string;
         tax_amount: string;
         total: string;
         notes: string | null;
         client?: { id: string; company_name: string; client_code: string };
+        discount_reason?: { id: string; name: string; code: string } | null;
         lines: Line[];
     };
     statuses: Record<string, string>;
@@ -37,7 +41,21 @@ export default function InvoiceShow({ invoice, can }: Props) {
                     <p className="text-sm text-slate-600">{invoice.client?.company_name}</p>
                     <p className="mt-1 text-sm capitalize">Status: {invoice.status}</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                    <a
+                        href={`/invoices/${invoice.id}/pdf`}
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+                    >
+                        Download invoice
+                    </a>
+                    {invoice.status === 'paid' && (
+                        <a
+                            href={`/invoices/${invoice.id}/receipt`}
+                            className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white"
+                        >
+                            Download receipt
+                        </a>
+                    )}
                     {invoice.status === 'draft' && can.update && (
                         <Link href={`/invoices/${invoice.id}/edit`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">Edit</Link>
                     )}
@@ -71,8 +89,14 @@ export default function InvoiceShow({ invoice, can }: Props) {
                 </div>
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
-                <table className="min-w-full text-sm">
+            <div className="min-w-0 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+                <table className="w-full min-w-[36rem] table-fixed text-sm">
+                    <colgroup>
+                        <col className="w-auto" />
+                        <col className="w-20" />
+                        <col className="w-28" />
+                        <col className="w-28" />
+                    </colgroup>
                     <thead className="bg-slate-50 dark:bg-slate-900">
                         <tr>
                             <th className="px-4 py-2 text-left">Description</th>
@@ -84,28 +108,41 @@ export default function InvoiceShow({ invoice, can }: Props) {
                     <tbody>
                         {invoice.lines.map((line) => (
                             <tr key={line.id} className="border-t border-slate-200 dark:border-slate-800">
-                                <td className="px-4 py-2">{line.description}</td>
-                                <td className="px-4 py-2 text-right">{line.quantity}</td>
-                                <td className="px-4 py-2 text-right">${Number(line.unit_price).toFixed(2)}</td>
-                                <td className="px-4 py-2 text-right">${Number(line.line_total).toFixed(2)}</td>
+                                <td className="max-w-0 truncate px-4 py-2">{line.description}</td>
+                                <td className="px-4 py-2 text-right tabular-nums">{line.quantity}</td>
+                                <td className="px-4 py-2 text-right tabular-nums">${Number(line.unit_price).toFixed(2)}</td>
+                                <td className="px-4 py-2 text-right tabular-nums">${Number(line.line_total).toFixed(2)}</td>
                             </tr>
                         ))}
                     </tbody>
-                    <tfoot>
-                        <tr className="border-t border-slate-200 dark:border-slate-800">
-                            <td colSpan={3} className="px-4 py-2 text-right font-medium">Subtotal</td>
-                            <td className="px-4 py-2 text-right">${Number(invoice.subtotal).toFixed(2)}</td>
-                        </tr>
-                        <tr>
-                            <td colSpan={3} className="px-4 py-2 text-right font-medium">Tax</td>
-                            <td className="px-4 py-2 text-right">${Number(invoice.tax_amount).toFixed(2)}</td>
-                        </tr>
-                        <tr>
-                            <td colSpan={3} className="px-4 py-2 text-right font-semibold">Total</td>
-                            <td className="px-4 py-2 text-right font-semibold">${Number(invoice.total).toFixed(2)}</td>
-                        </tr>
-                    </tfoot>
                 </table>
+            </div>
+
+            <div className="mt-4 ml-auto w-full max-w-xs space-y-2 text-sm">
+                <div className="flex items-baseline justify-between gap-4">
+                    <span className="text-slate-500">Subtotal</span>
+                    <span className="shrink-0 tabular-nums">${Number(invoice.subtotal).toFixed(2)}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-4">
+                    <span className="min-w-0 text-slate-500">
+                        Discount
+                        <span className="mt-0.5 block truncate text-xs">
+                            {invoice.discount_type === 'percentage'
+                                ? `${Number(invoice.discount_value ?? 0)}%`
+                                : 'flat'}
+                            {invoice.discount_reason?.name ? ` · ${invoice.discount_reason.name}` : ''}
+                        </span>
+                    </span>
+                    <span className="shrink-0 tabular-nums">-${Number(invoice.discount_amount ?? 0).toFixed(2)}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-4">
+                    <span className="text-slate-500">Tax</span>
+                    <span className="shrink-0 tabular-nums">${Number(invoice.tax_amount).toFixed(2)}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-4 border-t border-slate-200 pt-2 font-semibold dark:border-slate-700">
+                    <span>Total</span>
+                    <span className="shrink-0 tabular-nums">${Number(invoice.total).toFixed(2)}</span>
+                </div>
             </div>
 
             {invoice.notes && (

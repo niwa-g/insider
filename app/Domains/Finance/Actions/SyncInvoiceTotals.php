@@ -2,21 +2,47 @@
 
 namespace App\Domains\Finance\Actions;
 
+use App\Domains\Finance\Enums\DiscountType;
 use App\Domains\Finance\Models\Invoice;
 use App\Domains\Finance\Models\InvoiceLine;
 
 class SyncInvoiceTotals
 {
-    public function handle(Invoice $invoice, float $taxAmount = 0): Invoice
-    {
+    public function handle(
+        Invoice $invoice,
+        ?float $taxAmount = null,
+        ?float $discountValue = null,
+        ?DiscountType $discountType = null,
+    ): Invoice {
         $subtotal = (float) $invoice->lines()->sum('line_total');
+        $tax = $taxAmount ?? (float) $invoice->tax_amount;
+        $type = $discountType ?? $invoice->discount_type ?? DiscountType::Flat;
+        $value = $discountValue ?? (float) $invoice->discount_value;
+        $discount = self::resolveDiscountAmount($subtotal, $type, $value);
+
         $invoice->update([
             'subtotal' => $subtotal,
-            'tax_amount' => $taxAmount,
-            'total' => $subtotal + $taxAmount,
+            'discount_type' => $type,
+            'discount_value' => max(0, $value),
+            'discount_amount' => $discount,
+            'tax_amount' => $tax,
+            'total' => round(max(0, $subtotal - $discount) + $tax, 2),
         ]);
 
         return $invoice->fresh(['lines', 'client:id,company_name']);
+    }
+
+    public static function resolveDiscountAmount(float $subtotal, DiscountType|string $type, float $value): float
+    {
+        $type = $type instanceof DiscountType ? $type : DiscountType::from($type);
+        $value = max(0, $value);
+
+        $discount = match ($type) {
+            DiscountType::Percentage => round($subtotal * (min($value, 100) / 100), 2),
+            DiscountType::Flat => $value,
+        };
+
+        return max(0, min($discount, $subtotal));
     }
 
     /** @param  array<int, array<string, mixed>>  $lines */
@@ -46,6 +72,11 @@ class SyncInvoiceTotals
             ]);
         }
 
-        return $this->handle($invoice, (float) $invoice->tax_amount);
+        return $this->handle(
+            $invoice,
+            (float) $invoice->tax_amount,
+            (float) $invoice->discount_value,
+            $invoice->discount_type,
+        );
     }
 }

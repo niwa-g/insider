@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 class Organization extends Model
 {
@@ -19,15 +20,41 @@ class Organization extends Model
 
     protected $fillable = [
         'name',
+        'legal_name',
         'slug',
+        'logo_path',
+        'website',
+        'email',
+        'phone',
+        'address_line1',
+        'address_line2',
+        'city',
+        'state',
+        'postal_code',
+        'country',
+        'tax_id',
+        'primary_color',
         'timezone',
         'currency',
         'status',
     ];
 
+    protected $appends = [
+        'logo_url',
+    ];
+
     protected static function newFactory(): OrganizationFactory
     {
         return OrganizationFactory::new();
+    }
+
+    public function getLogoUrlAttribute(): ?string
+    {
+        if (! $this->logo_path) {
+            return null;
+        }
+
+        return Storage::disk('public')->url($this->logo_path);
     }
 
     public function departments(): HasMany

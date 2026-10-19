@@ -18,6 +18,7 @@ use App\Http\Controllers\Crm\ClientGroupController;
 use App\Http\Controllers\Crm\ContactController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Settings\AuditLogController;
+use App\Http\Controllers\Settings\OrganizationController;
 use App\Http\Controllers\Settings\RoleController as SettingsRoleController;
 use App\Http\Controllers\Settings\SettingsController;
 use App\Http\Controllers\Settings\TeamController as SettingsTeamController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\Settings\UserController as SettingsUserController;
 use App\Http\Controllers\Delivery\ProjectController;
 use App\Http\Controllers\Delivery\ProjectTemplateController;
 use App\Http\Controllers\Delivery\TaskController;
+use App\Http\Controllers\Finance\DiscountReasonController;
 use App\Http\Controllers\Finance\FinanceReportController;
 use App\Http\Controllers\Finance\FinancialEntryController;
 use App\Http\Controllers\Finance\InvoiceController;
@@ -56,10 +58,32 @@ Route::middleware(['auth', SetCurrentOrganization::class])->group(function () {
 
     Route::prefix('settings')->name('settings.')->group(function () {
         Route::get('/', [SettingsController::class, 'index'])->name('index');
+
+        Route::get('/organization', [OrganizationController::class, 'edit'])->name('organization.edit');
+        Route::post('/organization', [OrganizationController::class, 'update'])->name('organization.update');
+
         Route::get('/users', [SettingsUserController::class, 'index'])->name('users.index');
+        Route::get('/users/create', [SettingsUserController::class, 'create'])->name('users.create');
+        Route::post('/users', [SettingsUserController::class, 'store'])->name('users.store');
+        Route::get('/users/{user}/edit', [SettingsUserController::class, 'edit'])->name('users.edit');
+        Route::put('/users/{user}', [SettingsUserController::class, 'update'])->name('users.update');
+        Route::delete('/users/{user}', [SettingsUserController::class, 'destroy'])->name('users.destroy');
         Route::patch('/users/{user}/roles', [SettingsUserController::class, 'updateRoles'])->name('users.roles');
+
         Route::get('/teams', [SettingsTeamController::class, 'index'])->name('teams.index');
+        Route::get('/teams/create', [SettingsTeamController::class, 'create'])->name('teams.create');
+        Route::post('/teams', [SettingsTeamController::class, 'store'])->name('teams.store');
+        Route::get('/teams/{team}/edit', [SettingsTeamController::class, 'edit'])->name('teams.edit');
+        Route::put('/teams/{team}', [SettingsTeamController::class, 'update'])->name('teams.update');
+        Route::delete('/teams/{team}', [SettingsTeamController::class, 'destroy'])->name('teams.destroy');
+
         Route::get('/roles', [SettingsRoleController::class, 'index'])->name('roles.index');
+        Route::get('/roles/create', [SettingsRoleController::class, 'create'])->name('roles.create');
+        Route::post('/roles', [SettingsRoleController::class, 'store'])->name('roles.store');
+        Route::get('/roles/{role}/edit', [SettingsRoleController::class, 'edit'])->name('roles.edit');
+        Route::put('/roles/{role}', [SettingsRoleController::class, 'update'])->name('roles.update');
+        Route::delete('/roles/{role}', [SettingsRoleController::class, 'destroy'])->name('roles.destroy');
+
         Route::get('/audit', [AuditLogController::class, 'index'])->name('audit.index');
     });
 
@@ -91,9 +115,15 @@ Route::middleware(['auth', SetCurrentOrganization::class])->group(function () {
         ->name('financial-entries.void');
 
     Route::resource('invoices', InvoiceController::class);
+    Route::get('/invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])->name('invoices.pdf');
+    Route::get('/invoices/{invoice}/receipt', [InvoiceController::class, 'receipt'])->name('invoices.receipt');
     Route::post('/invoices/{invoice}/send', [InvoiceController::class, 'send'])->name('invoices.send');
     Route::post('/invoices/{invoice}/pay', [InvoiceController::class, 'pay'])->name('invoices.pay');
     Route::post('/invoices/{invoice}/void', [InvoiceController::class, 'void'])->name('invoices.void');
+
+    Route::resource('discount-reasons', DiscountReasonController::class)
+        ->parameters(['discount-reasons' => 'discount_reason'])
+        ->except(['show']);
 
     Route::get('/finance/reports', [FinanceReportController::class, 'index'])->name('finance.reports.index');
 
