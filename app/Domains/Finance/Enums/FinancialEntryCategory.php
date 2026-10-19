@@ -8,6 +8,14 @@ enum FinancialEntryCategory: string
     case License = 'license';
     case Labor = 'labor';
     case Subscription = 'subscription';
+    case Office = 'office';
+    case Rent = 'rent';
+    case Utilities = 'utilities';
+    case Marketing = 'marketing';
+    case Travel = 'travel';
+    case Software = 'software';
+    case Equipment = 'equipment';
+    case Vendor = 'vendor';
     case Other = 'other';
 
     public function label(): string
@@ -17,6 +25,14 @@ enum FinancialEntryCategory: string
             self::License => 'License',
             self::Labor => 'Labor',
             self::Subscription => 'Subscription',
+            self::Office => 'Office',
+            self::Rent => 'Rent',
+            self::Utilities => 'Utilities',
+            self::Marketing => 'Marketing',
+            self::Travel => 'Travel',
+            self::Software => 'Software',
+            self::Equipment => 'Equipment',
+            self::Vendor => 'Vendor / supplier',
             self::Other => 'Other',
         };
     }

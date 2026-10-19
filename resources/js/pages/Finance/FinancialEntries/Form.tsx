@@ -27,7 +27,8 @@ export default function FinancialEntryForm({
         project_id: (entry?.project_id as string) ?? '',
         client_service_id: (entry?.client_service_id as string) ?? '',
         entry_type: (entry?.entry_type as string) ?? preselectedType ?? 'revenue',
-        category: (entry?.category as string) ?? 'hosting',
+        category: (entry?.category as string) ?? (preselectedType === 'cost' ? 'office' : 'hosting'),
+        vendor: (entry?.vendor as string) ?? '',
         description: (entry?.description as string) ?? '',
         amount: (entry?.amount as string | number) ?? 0,
         occurred_on: (entry?.occurred_on as string) ?? new Date().toISOString().slice(0, 10),
@@ -103,6 +104,19 @@ export default function FinancialEntryForm({
                         ))}
                     </select>
                 </div>
+
+                {data.entry_type === 'cost' && (
+                    <div>
+                        <label className="block text-sm font-medium">Vendor / supplier</label>
+                        <input
+                            value={data.vendor}
+                            onChange={(e) => setData('vendor', e.target.value)}
+                            placeholder="Optional"
+                            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+                        />
+                        {errors.vendor && <p className="text-sm text-red-600">{errors.vendor}</p>}
+                    </div>
+                )}
 
                 <div>
                     <label className="block text-sm font-medium">Description</label>

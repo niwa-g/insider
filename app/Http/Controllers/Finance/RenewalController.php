@@ -70,7 +70,23 @@ class RenewalController extends Controller
     {
         $this->authorize('update', $renewal);
 
-        $action->handle($renewal, $request->string('notes')->toString() ?: null);
+        $result = $action->handle(
+            $renewal,
+            $request->string('notes')->toString() ?: null,
+            $request->boolean('create_invoice'),
+        );
+
+        if ($result['invoice']) {
+            return redirect()
+                ->route('invoices.show', $result['invoice'])
+                ->with('success', 'Renewal marked as renewed and draft invoice created.');
+        }
+
+        if ($result['vendor_bill']) {
+            return redirect()
+                ->route('vendor-bills.show', $result['vendor_bill'])
+                ->with('success', 'Renewal marked as renewed. Vendor bill and cost entry created.');
+        }
 
         return back()->with('success', 'Renewal marked as renewed.');
     }

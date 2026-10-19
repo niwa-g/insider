@@ -34,6 +34,9 @@ class FinancialEntry extends Model
         'client_service_id',
         'entry_type',
         'category',
+        'vendor',
+        'vendor_id',
+        'vendor_bill_id',
         'description',
         'amount',
         'currency',
@@ -69,6 +72,16 @@ class FinancialEntry extends Model
     public function invoice(): BelongsTo
     {
         return $this->belongsTo(Invoice::class);
+    }
+
+    public function vendorRelation(): BelongsTo
+    {
+        return $this->belongsTo(Vendor::class, 'vendor_id');
+    }
+
+    public function vendorBill(): BelongsTo
+    {
+        return $this->belongsTo(VendorBill::class);
     }
 
     public function voidOf(): BelongsTo

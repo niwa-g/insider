@@ -34,6 +34,7 @@ class UpsertClientServiceRequest extends FormRequest
             'cost' => ['required', 'numeric', 'min:0'],
             'selling_price' => ['required', 'numeric', 'min:0'],
             'provider' => ['nullable', 'string', 'max:255'],
+            'vendor_id' => ['nullable', 'ulid', 'exists:vendors,id'],
             'account_manager_id' => ['nullable', 'exists:users,id'],
             'technical_owner_id' => ['nullable', 'exists:users,id'],
             'status' => ['required', Rule::enum(ClientServiceStatus::class)],

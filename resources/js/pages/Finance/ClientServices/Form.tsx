@@ -18,6 +18,7 @@ type Props = {
     billingCycles: Record<string, string>;
     statuses: Record<string, string>;
     users: Array<{ id: number; name: string }>;
+    vendors: Array<{ id: string; name: string }>;
     preselectedClientId?: string | null;
 };
 
@@ -29,6 +30,7 @@ export default function ClientServiceForm({
     billingCycles,
     statuses,
     users,
+    vendors = [],
     preselectedClientId,
 }: Props) {
     const isEdit = Boolean(service?.id);
@@ -44,6 +46,7 @@ export default function ClientServiceForm({
         cost: (service?.cost as string | number) ?? 0,
         selling_price: (service?.selling_price as string | number) ?? 0,
         provider: (service?.provider as string) ?? '',
+        vendor_id: (service?.vendor_id as string) ?? '',
         account_manager_id: (service?.account_manager_id as number | string | null) ?? '',
         technical_owner_id: (service?.technical_owner_id as number | string | null) ?? '',
         status: (service?.status as string) ?? 'active',
@@ -195,12 +198,30 @@ export default function ClientServiceForm({
                     />
                 </label>
                 <label className="block text-sm font-medium">
-                    Provider
-                    <input
+                    Vendor (e.g. AWS)
+                    <select
                         className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950"
-                        value={data.provider}
-                        onChange={(e) => setData('provider', e.target.value)}
-                    />
+                        value={data.vendor_id}
+                        onChange={(e) => {
+                            const id = e.target.value;
+                            const vendor = vendors.find((v) => v.id === id);
+                            setData({
+                                ...data,
+                                vendor_id: id,
+                                provider: vendor?.name ?? data.provider,
+                            });
+                        }}
+                    >
+                        <option value="">None</option>
+                        {vendors.map((v) => (
+                            <option key={v.id} value={v.id}>{v.name}</option>
+                        ))}
+                    </select>
+                    <span className="mt-1 block text-xs text-slate-500">
+                        Used for vendor bills & cost when this service renews.{' '}
+                        <Link href="/vendors" className="text-blue-600 hover:underline">Manage vendors</Link>
+                    </span>
+                    {errors.vendor_id && <span className="mt-1 block text-sm text-red-600">{errors.vendor_id}</span>}
                 </label>
                 <label className="block text-sm font-medium">
                     Account manager

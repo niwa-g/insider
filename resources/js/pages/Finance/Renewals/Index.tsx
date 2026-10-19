@@ -104,17 +104,34 @@ export default function RenewalsIndex({ renewals, filters, statuses, counts, can
                                 <td className="px-4 py-3 capitalize">{row.status.replace('_', ' ')}</td>
                                 <td className="px-4 py-3 text-right">
                                     {can.update && row.status !== 'renewed' && row.status !== 'cancelled' && (
-                                        <button
-                                            type="button"
-                                            className="text-blue-600 hover:underline"
-                                            onClick={() => {
-                                                if (confirm(`Mark "${row.title}" as renewed?`)) {
-                                                    router.post(`/renewals/${row.id}/renew`);
-                                                }
-                                            }}
-                                        >
-                                            Mark renewed
-                                        </button>
+                                        <div className="flex flex-col items-end gap-1">
+                                            <button
+                                                type="button"
+                                                className="text-blue-600 hover:underline"
+                                                onClick={() => {
+                                                    if (confirm(`Mark "${row.title}" as renewed?`)) {
+                                                        router.post(`/renewals/${row.id}/renew`);
+                                                    }
+                                                }}
+                                            >
+                                                Mark renewed
+                                            </button>
+                                            {row.renewal_type === 'service' && (
+                                                <button
+                                                    type="button"
+                                                    className="text-xs text-emerald-600 hover:underline"
+                                                    onClick={() => {
+                                                        if (confirm(`Renew "${row.title}" and create a draft invoice?`)) {
+                                                            router.post(`/renewals/${row.id}/renew`, {
+                                                                create_invoice: true,
+                                                            });
+                                                        }
+                                                    }}
+                                                >
+                                                    Renew + invoice
+                                                </button>
+                                            )}
+                                        </div>
                                     )}
                                 </td>
                             </tr>

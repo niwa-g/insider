@@ -18,13 +18,25 @@ class MarkRenewalRenewed
     public function __construct(
         private AuditLogger $auditLogger,
         private SyncRenewalFromClientService $syncRenewal,
+        private CreateInvoiceFromClientServices $createInvoiceFromClientServices,
+        private CreateVendorBillFromClientService $createVendorBillFromClientService,
     ) {}
 
-    public function handle(Renewal $renewal, ?string $notes = null): Renewal
+    /**
+     * @return array{
+     *     renewal: Renewal,
+     *     invoice: ?\App\Domains\Finance\Models\Invoice,
+     *     vendor_bill: ?\App\Domains\Finance\Models\VendorBill
+     * }
+     */
+    public function handle(Renewal $renewal, ?string $notes = null, bool $createInvoice = false): array
     {
-        return DB::transaction(function () use ($renewal, $notes) {
+        return DB::transaction(function () use ($renewal, $notes, $createInvoice) {
             $old = $renewal->toArray();
             $renewable = $renewal->renewable;
+            $invoice = null;
+            $vendorBill = null;
+            $serviceForBilling = $renewable instanceof ClientService ? $renewable : null;
 
             if ($renewable instanceof ClientService) {
                 $nextDate = $this->nextRenewalDate($renewable);
@@ -46,11 +58,36 @@ class MarkRenewalRenewed
                 'created_at' => now(),
             ]);
 
+            if ($serviceForBilling) {
+                $serviceForBilling = $serviceForBilling->fresh(['vendor']);
+                $vendorBill = $this->createVendorBillFromClientService->handle(
+                    $serviceForBilling,
+                    $renewal->fresh(),
+                );
+            }
+
+            if ($createInvoice && $serviceForBilling) {
+                $invoice = $this->createInvoiceFromClientServices->handle(
+                    $renewal->organization_id,
+                    $renewal->client_id,
+                    [$serviceForBilling->id],
+                    ['notes' => "Renewal invoice for {$renewal->title}"],
+                );
+            }
+
             $fresh = $renewal->fresh();
             $this->auditLogger->log('renewal.renewed', $renewal, $old, $fresh?->toArray());
-            ActivityHelper::log('Renewal marked as renewed', $renewal, ['title' => $renewal->title]);
+            ActivityHelper::log('Renewal marked as renewed', $renewal, [
+                'title' => $renewal->title,
+                'invoice_id' => $invoice?->id,
+                'vendor_bill_id' => $vendorBill?->id,
+            ]);
 
-            return $fresh ?? $renewal;
+            return [
+                'renewal' => $fresh ?? $renewal,
+                'invoice' => $invoice,
+                'vendor_bill' => $vendorBill,
+            ];
         });
     }
 

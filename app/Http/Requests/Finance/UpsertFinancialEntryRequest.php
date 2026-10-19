@@ -27,6 +27,7 @@ class UpsertFinancialEntryRequest extends FormRequest
             'client_service_id' => ['nullable', 'ulid', 'exists:client_services,id'],
             'entry_type' => ['required', Rule::enum(FinancialEntryType::class)],
             'category' => ['nullable', Rule::enum(FinancialEntryCategory::class)],
+            'vendor' => ['nullable', 'string', 'max:255'],
             'description' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'occurred_on' => ['required', 'date'],

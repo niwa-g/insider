@@ -7,6 +7,7 @@ use App\Domains\Catalog\Enums\BillingType;
 use App\Domains\Catalog\Enums\ClientServiceStatus;
 use App\Domains\Crm\Models\Client;
 use App\Domains\Finance\Models\Renewal;
+use App\Domains\Finance\Models\Vendor;
 use App\Models\User;
 use App\Support\Concerns\BelongsToClient;
 use App\Support\Concerns\BelongsToOrganization;
@@ -44,6 +45,7 @@ class ClientService extends Model
         'selling_price',
         'recurring_revenue',
         'provider',
+        'vendor_id',
         'account_manager_id',
         'technical_owner_id',
         'status',
@@ -88,6 +90,11 @@ class ClientService extends Model
     public function renewal(): MorphOne
     {
         return $this->morphOne(Renewal::class, 'renewable');
+    }
+
+    public function vendor(): BelongsTo
+    {
+        return $this->belongsTo(Vendor::class);
     }
 
     public function margin(): float

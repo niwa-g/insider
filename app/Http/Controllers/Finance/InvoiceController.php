@@ -4,16 +4,21 @@ namespace App\Http\Controllers\Finance;
 
 use App\Domains\Catalog\Models\ClientService;
 use App\Domains\Crm\Models\Client;
+use App\Domains\Finance\Actions\CreateInvoiceFromClientServices;
 use App\Domains\Finance\Actions\DeleteInvoice;
 use App\Domains\Finance\Actions\GenerateInvoicePdf;
 use App\Domains\Finance\Actions\GenerateInvoiceReceiptPdf;
+use App\Domains\Finance\Actions\RecordInvoicePayment;
 use App\Domains\Finance\Actions\UpdateInvoiceStatus;
 use App\Domains\Finance\Actions\UpsertInvoice;
 use App\Domains\Finance\Enums\DiscountReasonStatus;
 use App\Domains\Finance\Enums\InvoiceStatus;
+use App\Domains\Finance\Enums\PaymentMethod;
 use App\Domains\Finance\Models\DiscountReason;
 use App\Domains\Finance\Models\Invoice;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Finance\CreateInvoiceFromServicesRequest;
+use App\Http\Requests\Finance\RecordInvoicePaymentRequest;
 use App\Http\Requests\Finance\UpsertInvoiceRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -68,6 +73,40 @@ class InvoiceController extends Controller
         ]);
     }
 
+    public function createFromServices(): Response
+    {
+        $this->authorize('create', Invoice::class);
+
+        return Inertia::render('Finance/Invoices/FromServices', [
+            'clients' => Client::query()->orderBy('company_name')->get(['id', 'company_name']),
+            'clientServices' => ClientService::query()
+                ->orderBy('name')
+                ->get(['id', 'name', 'client_id', 'selling_price', 'billing_cycle']),
+        ]);
+    }
+
+    public function storeFromServices(
+        CreateInvoiceFromServicesRequest $request,
+        CreateInvoiceFromClientServices $action,
+    ): RedirectResponse {
+        try {
+            $invoice = $action->handle(
+                $request->user()->organization_id,
+                $request->validated('client_id'),
+                $request->validated('client_service_ids'),
+                [
+                    'issue_date' => $request->validated('issue_date'),
+                    'due_date' => $request->validated('due_date'),
+                    'notes' => $request->validated('notes'),
+                ],
+            );
+        } catch (\InvalidArgumentException $e) {
+            return back()->withErrors(['client_service_ids' => $e->getMessage()]);
+        }
+
+        return redirect()->route('invoices.show', $invoice)->with('success', 'Invoice created from services.');
+    }
+
     public function store(UpsertInvoiceRequest $request, UpsertInvoice $action): RedirectResponse
     {
         $data = $request->validated();
@@ -89,7 +128,16 @@ class InvoiceController extends Controller
     public function show(Invoice $invoice): Response
     {
         $this->authorize('view', $invoice);
-        $invoice->load(['client:id,company_name,client_code', 'lines.clientService:id,name', 'discountReason:id,name,code']);
+        $invoice->load([
+            'client:id,company_name,client_code',
+            'lines.clientService:id,name',
+            'discountReason:id,name,code',
+            'payments.recordedBy:id,name',
+            'entries' => fn ($q) => $q->latest('occurred_on'),
+        ]);
+
+        $amountPaid = $invoice->amountPaid();
+        $balanceDue = max(0, round((float) $invoice->total - $amountPaid, 2));
 
         return Inertia::render('Finance/Invoices/Show', [
             'invoice' => [
@@ -97,7 +145,25 @@ class InvoiceController extends Controller
                 'status' => $invoice->getRawOriginal('status'),
                 'discount_type' => $invoice->getRawOriginal('discount_type') ?? 'flat',
                 'lines' => $invoice->lines->toArray(),
+                'payments' => $invoice->payments->map(fn ($p) => [
+                    ...$p->toArray(),
+                    'method' => $p->getRawOriginal('method'),
+                    'recorded_by' => $p->recordedBy?->only(['id', 'name']),
+                ])->all(),
+                'amount_paid' => $amountPaid,
+                'balance_due' => $balanceDue,
+                'revenue_entries' => $invoice->entries
+                    ->where('entry_type', \App\Domains\Finance\Enums\FinancialEntryType::Revenue)
+                    ->values()
+                    ->map(fn ($e) => [
+                        'id' => $e->id,
+                        'description' => $e->description,
+                        'amount' => $e->amount,
+                        'status' => $e->getRawOriginal('status'),
+                        'occurred_on' => $e->occurred_on?->toDateString(),
+                    ])->all(),
             ],
+            'paymentMethods' => PaymentMethod::options(),
             'statuses' => InvoiceStatus::options(),
             'can' => [
                 'update' => request()->user()?->can('update', $invoice) ?? false,
@@ -181,12 +247,46 @@ class InvoiceController extends Controller
         return back()->with('success', 'Invoice marked as sent.');
     }
 
-    public function pay(Invoice $invoice, UpdateInvoiceStatus $action): RedirectResponse
+    public function pay(Invoice $invoice, RecordInvoicePayment $action): RedirectResponse
     {
         $this->authorize('update', $invoice);
-        $action->handle($invoice, InvoiceStatus::Paid);
 
-        return back()->with('success', 'Invoice marked as paid. You can download the receipt.');
+        $balance = $invoice->balanceDue();
+        if ($balance <= 0) {
+            return back()->withErrors(['payment' => 'Invoice has no remaining balance.']);
+        }
+
+        try {
+            $action->handle($invoice, [
+                'amount' => $balance,
+                'method' => PaymentMethod::Other->value,
+                'paid_on' => now()->toDateString(),
+                'notes' => 'Marked paid in full',
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return back()->withErrors(['payment' => $e->getMessage()]);
+        }
+
+        return back()->with('success', 'Invoice marked as paid. Revenue posted and receipt available.');
+    }
+
+    public function recordPayment(
+        RecordInvoicePaymentRequest $request,
+        Invoice $invoice,
+        RecordInvoicePayment $action,
+    ): RedirectResponse {
+        try {
+            $action->handle($invoice, $request->validated());
+        } catch (\InvalidArgumentException $e) {
+            return back()->withErrors(['payment' => $e->getMessage()]);
+        }
+
+        $invoice->refresh();
+        $message = $invoice->status === InvoiceStatus::Paid
+            ? 'Payment recorded. Invoice paid in full — revenue posted.'
+            : 'Payment recorded.';
+
+        return back()->with('success', $message);
     }
 
     public function void(Invoice $invoice, UpdateInvoiceStatus $action): RedirectResponse

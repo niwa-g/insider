@@ -31,12 +31,20 @@ export default function InvoicesIndex({ invoices, filters, statuses, clients, ca
 
     return (
         <AppLayout title="Invoices">
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <h1 className="text-xl font-semibold">Invoices</h1>
                 {can.create && (
-                    <Link href="/invoices/create" className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">
-                        New invoice
-                    </Link>
+                    <div className="flex flex-wrap gap-2">
+                        <Link
+                            href="/invoices/from-services"
+                            className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+                        >
+                            From services
+                        </Link>
+                        <Link href="/invoices/create" className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">
+                            New invoice
+                        </Link>
+                    </div>
                 )}
             </div>
 

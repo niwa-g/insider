@@ -31,6 +31,8 @@ use App\Http\Controllers\Finance\FinanceReportController;
 use App\Http\Controllers\Finance\FinancialEntryController;
 use App\Http\Controllers\Finance\InvoiceController;
 use App\Http\Controllers\Finance\RenewalController;
+use App\Http\Controllers\Finance\VendorBillController;
+use App\Http\Controllers\Finance\VendorController;
 use App\Http\Controllers\Operations\DocumentController;
 use App\Http\Controllers\Operations\KnowledgeArticleController;
 use App\Http\Controllers\Operations\KnowledgeCategoryController;
@@ -114,16 +116,28 @@ Route::middleware(['auth', SetCurrentOrganization::class])->group(function () {
     Route::post('/financial-entries/{financial_entry}/void', [FinancialEntryController::class, 'void'])
         ->name('financial-entries.void');
 
+    Route::get('/invoices/from-services', [InvoiceController::class, 'createFromServices'])->name('invoices.from-services');
+    Route::post('/invoices/from-services', [InvoiceController::class, 'storeFromServices'])->name('invoices.from-services.store');
     Route::resource('invoices', InvoiceController::class);
     Route::get('/invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])->name('invoices.pdf');
     Route::get('/invoices/{invoice}/receipt', [InvoiceController::class, 'receipt'])->name('invoices.receipt');
     Route::post('/invoices/{invoice}/send', [InvoiceController::class, 'send'])->name('invoices.send');
     Route::post('/invoices/{invoice}/pay', [InvoiceController::class, 'pay'])->name('invoices.pay');
+    Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'recordPayment'])->name('invoices.payments.store');
     Route::post('/invoices/{invoice}/void', [InvoiceController::class, 'void'])->name('invoices.void');
 
     Route::resource('discount-reasons', DiscountReasonController::class)
         ->parameters(['discount-reasons' => 'discount_reason'])
         ->except(['show']);
+
+    Route::resource('vendors', VendorController::class)->except(['show']);
+    Route::resource('vendor-bills', VendorBillController::class)
+        ->parameters(['vendor-bills' => 'vendor_bill'])
+        ->only(['index', 'create', 'store', 'show']);
+    Route::post('/vendor-bills/{vendor_bill}/payments', [VendorBillController::class, 'pay'])
+        ->name('vendor-bills.payments.store');
+    Route::post('/vendor-bills/{vendor_bill}/pay', [VendorBillController::class, 'payInFull'])
+        ->name('vendor-bills.pay');
 
     Route::get('/finance/reports', [FinanceReportController::class, 'index'])->name('finance.reports.index');
 

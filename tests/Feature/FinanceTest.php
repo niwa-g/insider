@@ -247,6 +247,166 @@ it('downloads a receipt only after invoice is paid', function () {
         ->assertHeader('content-type', 'application/pdf');
 });
 
+it('records partial payments and posts revenue when fully paid', function () {
+    $user = seedFinanceUser([
+        'invoices.view',
+        'invoices.create',
+        'invoices.update',
+        'financial_entries.view',
+    ]);
+    $client = Client::factory()->create(['organization_id' => $user->organization_id]);
+
+    $this->actingAs($user)
+        ->post('/invoices', [
+            'client_id' => $client->id,
+            'issue_date' => now()->toDateString(),
+            'discount_type' => 'flat',
+            'discount_value' => 0,
+            'tax_amount' => 0,
+            'lines' => [
+                [
+                    'description' => 'Hosting',
+                    'quantity' => 1,
+                    'unit_price' => 100,
+                    'client_service_id' => null,
+                ],
+            ],
+        ])
+        ->assertRedirect();
+
+    $invoice = \App\Domains\Finance\Models\Invoice::query()
+        ->where('client_id', $client->id)
+        ->latest()
+        ->firstOrFail();
+
+    $this->actingAs($user)->post("/invoices/{$invoice->id}/send")->assertRedirect();
+
+    $this->actingAs($user)
+        ->post("/invoices/{$invoice->id}/payments", [
+            'amount' => 40,
+            'method' => 'bank_transfer',
+            'paid_on' => now()->toDateString(),
+        ])
+        ->assertRedirect();
+
+    $invoice->refresh();
+    expect($invoice->status->value)->toBe('sent')
+        ->and($invoice->amountPaid())->toBe(40.0)
+        ->and(\App\Domains\Finance\Models\FinancialEntry::query()->where('invoice_id', $invoice->id)->count())->toBe(0);
+
+    $this->actingAs($user)
+        ->post("/invoices/{$invoice->id}/payments", [
+            'amount' => 60,
+            'method' => 'card',
+            'paid_on' => now()->toDateString(),
+        ])
+        ->assertRedirect();
+
+    $invoice->refresh();
+    expect($invoice->status->value)->toBe('paid')
+        ->and($invoice->amountPaid())->toBe(100.0);
+
+    $revenue = \App\Domains\Finance\Models\FinancialEntry::query()
+        ->where('invoice_id', $invoice->id)
+        ->where('entry_type', 'revenue')
+        ->where('status', 'posted')
+        ->first();
+
+    expect($revenue)->not->toBeNull()
+        ->and((float) $revenue->amount)->toBe(100.0);
+});
+
+it('creates vendor bill and cost entry when renewing a service with vendor', function () {
+    $user = seedFinanceUser([
+        'financial_entries.view',
+        'financial_entries.create',
+        'financial_entries.update',
+        'renewals.view',
+        'renewals.update',
+        'client_services.view',
+        'client_services.create',
+        'client_services.update',
+    ]);
+    $client = Client::factory()->create(['organization_id' => $user->organization_id]);
+    $vendor = \App\Domains\Finance\Models\Vendor::query()->create([
+        'organization_id' => $user->organization_id,
+        'name' => 'AWS',
+        'code' => 'aws',
+        'status' => 'active',
+    ]);
+    $type = ServiceType::factory()->create(['organization_id' => $user->organization_id]);
+    $service = ClientService::factory()->create([
+        'organization_id' => $user->organization_id,
+        'client_id' => $client->id,
+        'service_type_id' => $type->id,
+        'name' => 'Managed hosting',
+        'cost' => 40,
+        'selling_price' => 100,
+        'vendor_id' => $vendor->id,
+        'provider' => 'AWS',
+        'renewal_date' => now()->addDays(3)->toDateString(),
+        'billing_cycle' => 'monthly',
+        'status' => 'active',
+    ]);
+
+    app(\App\Domains\Finance\Actions\SyncRenewalFromClientService::class)->handle($service);
+    $renewal = \App\Domains\Finance\Models\Renewal::query()
+        ->where('renewable_id', $service->id)
+        ->firstOrFail();
+
+    $this->actingAs($user)
+        ->post("/renewals/{$renewal->id}/renew")
+        ->assertRedirect();
+
+    $bill = \App\Domains\Finance\Models\VendorBill::query()
+        ->where('client_service_id', $service->id)
+        ->latest()
+        ->first();
+
+    expect($bill)->not->toBeNull()
+        ->and($bill->vendor_id)->toBe($vendor->id)
+        ->and((float) $bill->amount)->toBe(40.0);
+
+    $cost = \App\Domains\Finance\Models\FinancialEntry::query()
+        ->where('vendor_bill_id', $bill->id)
+        ->where('entry_type', 'cost')
+        ->where('status', 'posted')
+        ->first();
+
+    expect($cost)->not->toBeNull()
+        ->and((float) $cost->amount)->toBe(40.0)
+        ->and($cost->vendor_id)->toBe($vendor->id);
+});
+
+it('creates an invoice from selected client services', function () {
+    $user = seedFinanceUser(['invoices.view', 'invoices.create']);
+    $client = Client::factory()->create(['organization_id' => $user->organization_id]);
+    $type = ServiceType::factory()->create(['organization_id' => $user->organization_id]);
+    $service = ClientService::factory()->create([
+        'organization_id' => $user->organization_id,
+        'client_id' => $client->id,
+        'service_type_id' => $type->id,
+        'selling_price' => 75,
+        'name' => 'VPS Basic',
+    ]);
+
+    $this->actingAs($user)
+        ->post('/invoices/from-services', [
+            'client_id' => $client->id,
+            'client_service_ids' => [$service->id],
+            'issue_date' => now()->toDateString(),
+        ])
+        ->assertRedirect();
+
+    $invoice = \App\Domains\Finance\Models\Invoice::query()
+        ->where('client_id', $client->id)
+        ->latest()
+        ->firstOrFail();
+
+    expect((float) $invoice->total)->toBe(75.0)
+        ->and($invoice->lines()->first()?->client_service_id)->toBe($service->id);
+});
+
 it('loads finance reports page for authorized users', function () {
     $user = seedFinanceUser(['finance_reports.view']);
 

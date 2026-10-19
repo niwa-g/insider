@@ -10,6 +10,7 @@ use App\Domains\Catalog\Enums\ClientServiceStatus;
 use App\Domains\Catalog\Models\ClientService;
 use App\Domains\Catalog\Models\ServiceType;
 use App\Domains\Crm\Models\Client;
+use App\Domains\Finance\Models\Vendor;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Catalog\UpsertClientServiceRequest;
 use App\Models\User;
@@ -68,6 +69,7 @@ class ClientServiceController extends Controller
                 ->where('organization_id', $request->user()?->organization_id)
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'vendors' => Vendor::query()->where('status', 'active')->orderBy('name')->get(['id', 'name']),
             'preselectedClientId' => $request->string('client_id')->toString() ?: null,
         ]);
     }
@@ -109,6 +111,7 @@ class ClientServiceController extends Controller
                 ->where('organization_id', $request->user()?->organization_id)
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'vendors' => Vendor::query()->where('status', 'active')->orderBy('name')->get(['id', 'name']),
             'preselectedClientId' => $clientService->client_id,
         ]);
     }

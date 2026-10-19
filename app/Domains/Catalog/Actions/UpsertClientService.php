@@ -5,6 +5,7 @@ namespace App\Domains\Catalog\Actions;
 use App\Domains\Catalog\Enums\BillingType;
 use App\Domains\Catalog\Models\ClientService;
 use App\Domains\Finance\Actions\SyncRenewalFromClientService;
+use App\Domains\Finance\Models\Vendor;
 use App\Domains\Platform\Services\AuditLogger;
 use App\Support\ActivityHelper;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,13 @@ class UpsertClientService
                 true
             ) ? ($data['selling_price'] ?? 0) : 0;
 
+            if (! empty($data['vendor_id'])) {
+                $vendorName = Vendor::query()->whereKey($data['vendor_id'])->value('name');
+                if ($vendorName) {
+                    $data['provider'] = $vendorName;
+                }
+            }
+
             if ($service === null) {
                 $service = ClientService::query()->create($data);
                 $this->auditLogger->log('client_service.created', $service, null, $service->toArray());
@@ -41,7 +49,7 @@ class UpsertClientService
 
             $this->syncRenewal->handle($service->fresh());
 
-            return $service->fresh(['client', 'serviceType', 'accountManager', 'technicalOwner']);
+            return $service->fresh(['client', 'serviceType', 'accountManager', 'technicalOwner', 'vendor']);
         });
     }
 }

@@ -162,6 +162,8 @@ export const mainNavigationSections: NavSection[] = [
                         permission: 'financial_entries.view',
                     },
                     { name: 'Invoices', href: '/invoices', permission: 'invoices.view' },
+                    { name: 'Vendors', href: '/vendors', permission: 'financial_entries.view' },
+                    { name: 'Vendor bills', href: '/vendor-bills', permission: 'financial_entries.view' },
                     { name: 'Discount reasons', href: '/discount-reasons', permission: 'invoices.view' },
                     { name: 'Renewals', href: '/renewals', permission: 'renewals.view' },
                 ],

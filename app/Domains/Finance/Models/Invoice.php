@@ -79,4 +79,19 @@ class Invoice extends Model
     {
         return $this->hasMany(FinancialEntry::class);
     }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(InvoicePayment::class)->latest('paid_on')->latest('created_at');
+    }
+
+    public function amountPaid(): float
+    {
+        return round((float) $this->payments()->sum('amount'), 2);
+    }
+
+    public function balanceDue(): float
+    {
+        return max(0, round((float) $this->total - $this->amountPaid(), 2));
+    }
 }
