@@ -316,6 +316,68 @@ it('records partial payments and posts revenue when fully paid', function () {
         ->and((float) $revenue->amount)->toBe(100.0);
 });
 
+it('submits, approves and pays an expense claim posting a cost entry', function () {
+    $approver = seedFinanceUser([
+        'financial_entries.view',
+        'financial_entries.create',
+        'financial_entries.post',
+    ]);
+
+    $claimantUser = \App\Models\User::factory()->create([
+        'organization_id' => $approver->organization_id,
+    ]);
+    foreach (['financial_entries.view', 'financial_entries.create'] as $permission) {
+        \Spatie\Permission\Models\Permission::findOrCreate($permission, 'web');
+    }
+    $claimantRole = \Spatie\Permission\Models\Role::findOrCreate('Claimant', 'web');
+    $claimantRole->syncPermissions(['financial_entries.view', 'financial_entries.create']);
+    $claimantUser->assignRole($claimantRole);
+    app()->instance('currentOrganizationId', $approver->organization_id);
+
+    $this->actingAs($claimantUser)
+        ->post('/expense-claims', [
+            'title' => 'Taxi to client site',
+            'category' => 'transport',
+            'amount' => 25,
+            'incurred_on' => now()->toDateString(),
+        ])
+        ->assertRedirect();
+
+    $claim = \App\Domains\Finance\Models\ExpenseClaim::query()
+        ->where('claimant_id', $claimantUser->id)
+        ->latest()
+        ->firstOrFail();
+
+    expect($claim->status->value)->toBe('pending');
+
+    // self-approval blocked
+    $this->actingAs($claimantUser)
+        ->post("/expense-claims/{$claim->id}/approve")
+        ->assertForbidden();
+
+    $this->actingAs($approver)
+        ->post("/expense-claims/{$claim->id}/approve")
+        ->assertRedirect();
+
+    expect($claim->fresh()->status->value)->toBe('approved');
+
+    $this->actingAs($approver)
+        ->post("/expense-claims/{$claim->id}/pay", [
+            'method' => 'bank_transfer',
+            'paid_on' => now()->toDateString(),
+        ])
+        ->assertRedirect();
+
+    $claim->refresh();
+    expect($claim->status->value)->toBe('paid')
+        ->and($claim->financial_entry_id)->not->toBeNull();
+
+    $entry = $claim->financialEntry;
+    expect($entry->entry_type->value)->toBe('cost')
+        ->and($entry->status->value)->toBe('posted')
+        ->and((float) $entry->amount)->toBe(25.0);
+});
+
 it('creates vendor bill and cost entry when renewing a service with vendor', function () {
     $user = seedFinanceUser([
         'financial_entries.view',

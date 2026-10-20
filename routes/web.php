@@ -27,6 +27,7 @@ use App\Http\Controllers\Delivery\ProjectController;
 use App\Http\Controllers\Delivery\ProjectTemplateController;
 use App\Http\Controllers\Delivery\TaskController;
 use App\Http\Controllers\Finance\DiscountReasonController;
+use App\Http\Controllers\Finance\ExpenseClaimController;
 use App\Http\Controllers\Finance\FinanceReportController;
 use App\Http\Controllers\Finance\FinancialEntryController;
 use App\Http\Controllers\Finance\InvoiceController;
@@ -138,6 +139,18 @@ Route::middleware(['auth', SetCurrentOrganization::class])->group(function () {
         ->name('vendor-bills.payments.store');
     Route::post('/vendor-bills/{vendor_bill}/pay', [VendorBillController::class, 'payInFull'])
         ->name('vendor-bills.pay');
+
+    Route::resource('expense-claims', ExpenseClaimController::class)
+        ->parameters(['expense-claims' => 'expense_claim'])
+        ->only(['index', 'create', 'store', 'show', 'destroy']);
+    Route::post('/expense-claims/{expense_claim}/approve', [ExpenseClaimController::class, 'approve'])
+        ->name('expense-claims.approve');
+    Route::post('/expense-claims/{expense_claim}/reject', [ExpenseClaimController::class, 'reject'])
+        ->name('expense-claims.reject');
+    Route::post('/expense-claims/{expense_claim}/cancel', [ExpenseClaimController::class, 'cancel'])
+        ->name('expense-claims.cancel');
+    Route::post('/expense-claims/{expense_claim}/pay', [ExpenseClaimController::class, 'pay'])
+        ->name('expense-claims.pay');
 
     Route::get('/finance/reports', [FinanceReportController::class, 'index'])->name('finance.reports.index');
 
